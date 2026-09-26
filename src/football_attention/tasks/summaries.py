@@ -151,8 +151,11 @@ def build_summaries(
 def main() -> None:
     parser = argparse.ArgumentParser(description='Summarize predictions and target distributions.')
     parser.add_argument('--project-dir', type=Path, required=True)
+    parser.add_argument('--holdout-results-name', default='results/holdout')
+    parser.add_argument('--results-name', default='results/summaries')
     args = parser.parse_args()
-    build_summaries(args.project_dir, args.project_dir / 'results/summaries')
+    build_summaries(args.project_dir, args.project_dir / args.results_name,
+                    holdout_predictions=Path(args.holdout_results_name) / 'predictions.parquet')
 
 
 if __name__ == '__main__':

@@ -104,6 +104,8 @@ def buildup_length_summary(
     project: Path,
     *,
     bootstrap_samples: int = 10_000,
+    holdout_name: str = 'holdout',
+    holdout_results_name: str = 'results/holdout',
 ) -> pd.DataFrame:
     inputs = (
         (
@@ -114,8 +116,8 @@ def buildup_length_summary(
         ),
         (
             PERIODS[1],
-            project / 'results/holdout/predictions.parquet',
-            project / 'data/holdout/sequences_raw.parquet',
+            project / holdout_results_name / 'predictions.parquet',
+            project / 'data' / holdout_name / 'sequences_raw.parquet',
             None,
         ),
     )
@@ -241,6 +243,7 @@ def importance_summary(
     *,
     permutations: int = 100,
     bootstrap_samples: int = 10_000,
+    holdout_name: str = 'holdout',
 ) -> pd.DataFrame:
     fitted = load_classical_models(project / 'results/final/classical/models.pkl')
     vectorizer = fitted['vectorizer']
@@ -252,7 +255,7 @@ def importance_summary(
     }
     inputs = (
         (PERIODS[0], project / 'data/development/sequences_raw.parquet', 'test'),
-        (PERIODS[1], project / 'data/holdout/sequences_raw.parquet', None),
+        (PERIODS[1], project / 'data' / holdout_name / 'sequences_raw.parquet', None),
     )
     output = []
     for period_index, (period, path, split) in enumerate(inputs):
@@ -362,11 +365,14 @@ def plot_importance(summary: pd.DataFrame, output: Path) -> None:
     plt.close(figure)
 
 
-def build_boosting_figures(project: Path, output_dir: Path) -> None:
-    length = buildup_length_summary(project)
+def build_boosting_figures(project: Path, output_dir: Path, *,
+                          holdout_name: str = 'holdout',
+                          holdout_results_name: str = 'results/holdout') -> None:
+    length = buildup_length_summary(project, holdout_name=holdout_name,
+                                    holdout_results_name=holdout_results_name)
     length.to_csv(output_dir / 'buildup_value_by_length.csv', index=False)
     plot_buildup_length(length, output_dir / 'buildup_value_by_length.pdf')
-    importance = importance_summary(project)
+    importance = importance_summary(project, holdout_name=holdout_name)
     importance.to_csv(
         output_dir / 'boosting_group_permutation_importance.csv',
         index=False,

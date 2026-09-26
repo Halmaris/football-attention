@@ -105,7 +105,8 @@ def build_summary_figure(
     mse_axis.set_yticks(y, model_labels)
     mse_axis.invert_yaxis()
     mse_axis.set_xlabel(r'$\Delta$MSE vs boosting ($\times 10^{-3}$)')
-    mse_axis.set_xlim(-0.55, 3.7)
+    mse_axis.set_xlim(min(-0.55, 1.06 * 1000 * min(development['ci_025'].min(), holdout['ci_025'].min())),
+                      max(3.7, 1.06 * 1000 * max(development['ci_975'].max(), holdout['ci_975'].max())))
     mse_axis.set_xticks([-0.5, 0.0, 1.0, 2.0, 3.0])
     mse_axis.legend(
         frameon=False,

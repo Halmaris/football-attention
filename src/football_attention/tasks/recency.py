@@ -50,6 +50,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--development-prepared-name', default='development')
     parser.add_argument('--external-prepared-name', default='holdout')
     parser.add_argument('--seeds', nargs='+', type=int, default=list(DEFAULT_SEEDS))
+    parser.add_argument('--datasets', nargs='+', choices=['development_test', 'frozen_holdout'],
+                        default=['development_test', 'frozen_holdout'])
     parser.add_argument('--n-bootstrap', type=int, default=10_000)
     parser.add_argument('--bootstrap-seed', type=int, default=2026)
     return parser.parse_args()
@@ -361,6 +363,8 @@ def main() -> None:
         ('development_test', args.development_prepared_name, 'test'),
         ('frozen_holdout', args.external_prepared_name, 'external_test'),
     ):
+        if name not in args.datasets:
+            continue
         rows = pd.read_parquet(root / 'data' / prepared_name / 'sequences_raw.parquet')
         rows = rows[rows['split'].eq(split)]
         spec = DatasetSpec(

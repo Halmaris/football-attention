@@ -62,6 +62,7 @@ def parse_args() -> argparse.Namespace:
         default=Path.cwd(),
     )
     parser.add_argument('--frozen-results-name', default='results/final')
+    parser.add_argument('--source-controls-name', help='Read existing matched checkpoints from this directory.')
     parser.add_argument('--development-prepared-name', default='development')
     parser.add_argument(
         '--external-prepared-name',
@@ -76,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--stage',
-        choices=['train', 'development', 'external', 'aggregate', 'all'],
+        choices=['train', 'development', 'external', 'aggregate', 'aggregate-external', 'all'],
         default='all',
     )
     parser.add_argument('--seeds', nargs='+', type=int)
@@ -359,6 +360,7 @@ def evaluate_dataset(
     dataset_name: str,
     rows: pd.DataFrame,
     force: bool,
+    source_controls_dir: Path | None = None,
 ) -> None:
     device = select_device()
     for model_type in MODELS:
@@ -366,7 +368,7 @@ def evaluate_dataset(
             seed = int(seed_value)
             source = checkpoint_path(
                 frozen_dir,
-                results_dir,
+                source_controls_dir if source_controls_dir is not None else results_dir,
                 model_type,
                 seed,
             )
@@ -753,6 +755,9 @@ def main() -> None:
     frozen_dir = project_dir / args.frozen_results_name
     external_dir = project_dir / args.external_results_name
     results_dir = project_dir / args.results_name
+    source_controls = project_dir / args.source_controls_name if args.source_controls_name else None
+    if source_controls is not None and args.stage not in {'external', 'aggregate-external'}:
+        raise ValueError('--source-controls-name is restricted to inference-only external stages')
     frozen_protocol = read_json(frozen_dir / 'frozen_protocol.json')
     seeds = (
         [int(seed) for seed in args.seeds]
@@ -812,7 +817,19 @@ def main() -> None:
             dataset_name='frozen_holdout',
             rows=external,
             force=args.force_evaluation,
+            source_controls_dir=source_controls,
         )
+    if args.stage == 'aggregate-external':
+        external = load_external(project_dir, args.external_prepared_name)
+        aggregate_dataset(
+            frozen_dir, external_dir, results_dir, protocol,
+            dataset_name='frozen_holdout', rows=external, n_bootstrap=n_bootstrap,
+        )
+        (results_dir / 'external_evaluation_complete.json').write_text(json.dumps({
+            'training_performed': False, 'tuning_performed': False,
+            'n_sequences': len(external), 'n_matches': int(external['match_id'].nunique()),
+            'models': list(MODELS), 'seeds': seeds,
+        }, indent=2), encoding='utf-8')
     if args.stage in {'aggregate', 'all'}:
         development = load_rows(
             project_dir,

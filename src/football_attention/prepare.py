@@ -45,6 +45,13 @@ def prepare_datasets(work_dir: Path, development_cache: Path, holdout_cache: Pat
                 if missing:
                     raise ValueError(f'Development cache lacks {len(missing)} event files')
             rows = builder(cache, staged / label, competition_id=competition, season_id=season)
+            rows[['shot_seq_id', 'shot_event_id', 'match_id']].to_parquet(
+                staged / label / 'sequence_ids.parquet', index=False,
+            )
+            rows.loc[rows['n_events'].le(1),
+                     ['shot_seq_id', 'shot_event_id', 'match_id', 'match_date']].to_csv(
+                staged / label / 'excluded_no_pre_shot_sequences.csv', index=False,
+            )
             retained = rows.loc[rows['n_events'].gt(1)].copy()
             if retained.empty or retained['shot_seq_id'].duplicated().any():
                 raise ValueError(f'{label}: empty data or duplicate sequence IDs')

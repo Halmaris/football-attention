@@ -90,6 +90,10 @@ def player_maps(raw, tokens, players, *, team, splits, support, output):
 def main() -> None:
     parser = argparse.ArgumentParser(description='Plot current locally generated results.')
     parser.add_argument('--work-dir', type=Path, default=Path('local/run'))
+    parser.add_argument('--holdout-name', default='holdout')
+    parser.add_argument('--holdout-results-name', default='results/holdout')
+    parser.add_argument('--explanation-results-name', default='results/explanations')
+    parser.add_argument('--output-name', default='results/figures')
     parser.add_argument('--team')
     parser.add_argument('--players', type=int, nargs='+')
     parser.add_argument('--player-labels', nargs='+')
@@ -104,10 +108,13 @@ def main() -> None:
         parser.error('Provide one label per player')
     root = args.work_dir.resolve()
     final = root / 'results/final'
-    output = root / 'results/figures'
+    output = root / args.output_name
     output.mkdir(parents=True, exist_ok=True)
-    build_summary_figure(root, output / 'summary.pdf')
-    build_boosting_figures(root, output)
+    build_summary_figure(root, output / 'summary.pdf',
+                         external_results_name=args.holdout_results_name,
+                         explanation_results_name=args.explanation_results_name)
+    build_boosting_figures(root, output, holdout_name=args.holdout_name,
+                          holdout_results_name=args.holdout_results_name)
     players = pd.read_csv(final / 'faithful/player_occlusion_report.csv')
     player_responses(players, output / 'player_responses.pdf', args.highlight_player)
     prepared = root / 'data/development'

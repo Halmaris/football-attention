@@ -4,6 +4,7 @@ import pkgutil
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -143,3 +144,38 @@ def test_pipeline_on_synthetic_data(prepared, monkeypatch):
         'player_attention.pdf',
         'sequence.pdf',
     }
+    from football_attention import frozen_final, reevaluate_holdout
+    from football_attention.prepare import file_hash
+    from football_attention.tasks import alignment
+    from test_holdout_update import extend
+
+    extend(prepared)
+    previous_files = [path for path in (prepared / 'results').rglob('*') if path.is_file()]
+    previous_hashes = {path: file_hash(path) for path in previous_files}
+
+    def forbid_training(*args, **kwargs):
+        pytest.fail('Holdout reevaluation must never fit a model')
+
+    monkeypatch.setattr(frozen_final, 'fit_neural_fixed_epochs', forbid_training)
+    monkeypatch.setattr(frozen_final, 'fit_classical_models', forbid_training)
+    monkeypatch.setattr(alignment, 'train_matched_control', forbid_training)
+
+    def execute_in_process(command, *, env, check):
+        monkeypatch.setattr(sys, 'argv', [command[2], *command[3:]])
+        importlib.import_module(command[2]).main()
+
+    monkeypatch.setattr(reevaluate_holdout.subprocess, 'run', execute_in_process)
+    args = SimpleNamespace(work_dir=prepared, name='expanded', stages=list(reevaluate_holdout.STAGES),
+                           n_bootstrap=20, shapley_permutations=4, threads=1, device='cpu', dry_run=False)
+    reevaluate_holdout.run(args)
+    destination = prepared / 'results/expanded'
+    assert (destination / 'reevaluation_complete.json').is_file()
+    predictions = pd.read_parquet(destination / 'holdout/predictions.parquet')
+    assert predictions['shot_seq_id'].nunique() == 45
+    assert predictions['match_id'].nunique() == 5
+    assert 'gradient_boosting_last_event' in set(predictions['model_type'])
+    assert (destination / 'alignment/frozen_holdout').is_dir()
+    assert (destination / 'recency/frozen_holdout/correlation_bootstrap.csv').is_file()
+    assert all(file_hash(path) == checksum for path, checksum in previous_hashes.items())
+    with pytest.raises(RuntimeError, match='differs'):
+        reevaluate_holdout.run(SimpleNamespace(**{**vars(args), 'n_bootstrap': 21}))

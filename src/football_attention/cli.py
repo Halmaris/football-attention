@@ -110,12 +110,20 @@ def run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    from . import reevaluate_holdout, update_holdout
+
     parser = argparse.ArgumentParser(description='Football buildup prediction and attention diagnostics.')
     subparsers = parser.add_subparsers(dest='command', required=True)
     prepare = subparsers.add_parser('prepare', help='Build corrected, nonempty sequence datasets')
     prepare.add_argument('--work-dir', type=Path, default=Path('local/run'))
     prepare.add_argument('--development-cache', type=Path, required=True)
     prepare.add_argument('--holdout-cache', type=Path, required=True)
+    update_holdout.add_arguments(subparsers.add_parser(
+        'update-holdout', help='Download and prepare a separate enlarged holdout snapshot',
+    ))
+    reevaluate_holdout.add_arguments(subparsers.add_parser(
+        'evaluate-holdout', help='Evaluate saved models on a new holdout without training',
+    ))
     tune = subparsers.add_parser(
         'tune-boosting',
         help='Tune full-buildup and final-event-only boosting on validation data',
@@ -135,6 +143,10 @@ def main() -> None:
     if args.command == 'prepare':
         from .prepare import prepare_datasets
         prepare_datasets(args.work_dir.resolve(), args.development_cache.resolve(), args.holdout_cache.resolve())
+    elif args.command == 'update-holdout':
+        update_holdout.run(args)
+    elif args.command == 'evaluate-holdout':
+        reevaluate_holdout.run(args)
     elif args.command == 'tune-boosting':
         from .tasks.tune_boosting import run as tune_boosting
 

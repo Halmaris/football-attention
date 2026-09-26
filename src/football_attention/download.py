@@ -117,6 +117,15 @@ def save_parquet(
     temporary.replace(path)
 
 
+def normalize_match_metadata(matches: pd.DataFrame) -> pd.DataFrame:
+    result = stringify_nested_columns(matches)
+    for column in result.select_dtypes(include=['object']).columns:
+        # Multiple managers can turn a numeric ID into a comma-separated string.
+        if pd.api.types.infer_dtype(result[column], skipna=True) in {'mixed', 'mixed-integer'}:
+            result[column] = result[column].astype('string')
+    return result
+
+
 def should_download(path: Path, overwrite: bool) -> bool:
     return overwrite or not path.exists()
 
@@ -314,7 +323,7 @@ def main() -> None:
             'matches',
         )
         if not args.metadata_only:
-            save_parquet(matches, matches_path)
+            save_parquet(normalize_match_metadata(matches), matches_path)
     else:
         matches = pd.read_parquet(matches_path)
 

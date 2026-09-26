@@ -117,6 +117,53 @@ work directory if these change. A lock prevents concurrent runs in the same work
 directory. After an interrupted process, remove `.run.lock` only after confirming
 that no process is still running. Load only checkpoints you created or trust.
 
+## Extend and reevaluate the holdout
+
+Use a new named snapshot when later matches become available. Keep the original
+run and caches: do not replace `data/holdout` or restart training. This workflow
+requires the completed `refit` and `alignment` stages, including the saved
+schedule-matched control checkpoints.
+
+```sh
+football-attention update-holdout --work-dir local/run \
+  --name holdout-2026-09-26 --cutoff 2026-09-26 \
+  --previous-cache local/cache/holdout \
+  --cache-dir local/cache/holdout-2026-09-26
+
+football-attention evaluate-holdout --work-dir local/run \
+  --name holdout-2026-09-26 --device cpu
+```
+
+The dates above illustrate the snapshot used in the latest evaluation; choose
+your own explicit cutoff. The downloader selects available, scored matches up
+to that date and freezes the selected IDs. It copies earlier cached resources
+without changing them, downloads only missing resources, and resumes the same
+selection after an interruption. Add `--prepare-only` if the new cache is already
+complete. For another extension, also set `--previous-holdout` to the previous
+snapshot's name and point `--previous-cache` to its cache.
+
+Preparation checks event IDs, xG range, complete event/lineup coverage and temporal
+separation from development. It preserves old sequence IDs and contents, applies
+the same `n_events > 1` filter, and reports missing xG and excluded shot-only
+sequences. The new data and audit manifests stay under `local/run/data/<name>/`.
+
+`evaluate-holdout` performs **no training, Optuna search or preprocessing fit**.
+It reuses the original neural checkpoints, matched-control checkpoints, classical
+models and fitted feature schemas, including both boosting variants. Its stages
+are `holdout`, `alignment`, `explanations`, `recency`, `summaries` and `figures`.
+They produce predictions, MSE/MAE/R², paired match-level bootstrap contrasts,
+occlusion/IG, Shapley, gradient × input, recency, deletion, randomization and
+updated plots. Development predictions remain unchanged; combined summaries
+and plots reuse those predictions alongside the new holdout.
+
+Use `evaluate-holdout --name <name> --dry-run` to inspect the commands, or
+`--stages ...` to resume selected stages in dependency order. Bootstrap uses
+10,000 replicates and Shapley uses 64 antithetic permutations by default.
+New outputs are written only to `local/run/results/<name>/`; the final marker is
+`reevaluation_complete.json`. Input/checkpoint hashes, evaluation settings and
+software versions prevent reuse of stale results. Do not use the regular `run`
+command to evaluate an enlarged holdout. Nothing is uploaded automatically.
+
 ## Method and configuration
 
 - `configs/frozen.json` contains the selected hyperparameters, refit epochs and
